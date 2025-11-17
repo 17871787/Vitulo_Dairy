@@ -1,133 +1,421 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// Vitulo Livestock Management System
+// Database Schema for MVP
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
-// User model for authentication
+// Users table (managed by Supabase Auth)
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  name         String?
-  passwordHash String?
-  role         UserRole
-  farmId       String?
-  farm         Farm?    @relation(fields: [farmId], references: [id])
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id        String   @id @default(uuid())
+  email     String   @unique
+  role      UserRole @default(FARM_MANAGER)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  movements     AnimalMovement[]
+  importLogs    ImportLog[]
+  filterPresets UserFilterPreset[]
+
+  @@map("users")
 }
 
-model Farm {
-  id             String         @id @default(cuid())
-  name           String
-  type           FarmType
-  location       String?
-  users          User[]
-  animals        Animal[]       @relation("CurrentFarm")
-  suppliedCalves Animal[]       @relation("SourceFarm")
-  calfPurchases  CalfPurchase[] @relation("SourceFarm")
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-}
-
-model Animal {
-  id            String        @id @default(cuid())
-  tagNumber     String        @unique
-  breed         Breed
-  sex           Sex
-  dateOfBirth   DateTime
-  status        AnimalStatus
-  sourceFarmId  String?
-  sourceFarm    Farm?         @relation("SourceFarm", fields: [sourceFarmId], references: [id])
-  currentFarmId String?
-  currentFarm   Farm?         @relation("CurrentFarm", fields: [currentFarmId], references: [id])
-  calfPurchase  CalfPurchase?
-  killRecord    KillRecord?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-}
-
-model CalfPurchase {
-  id             String         @id @default(cuid())
-  animalId       String         @unique
-  animal         Animal         @relation(fields: [animalId], references: [id])
-  purchasePrice  Decimal        @db.Decimal(10, 2)
-  purchaseDate   DateTime
-  purchaseWeight Decimal?       @db.Decimal(10, 2)
-  sourceFarmId   String?
-  sourceFarm     Farm?          @relation("SourceFarm", fields: [sourceFarmId], references: [id])
-  transferValue  Decimal?       @db.Decimal(10, 2)
-  transferDate   DateTime?
-  finisherFarmId String?
-  importedFrom   String?
-  paymentStatus  PaymentStatus?
-  paymentDate    DateTime?
-  invoiceNumber  String?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-}
-
-model KillRecord {
-  id                String   @id @default(cuid())
-  animalId          String   @unique
-  animal            Animal   @relation(fields: [animalId], references: [id])
-  dateOfKill        DateTime
-  deadweight        Decimal  @db.Decimal(10, 2)
-  fatClass          String
-  conformationClass String
-  carcassValue      Decimal  @db.Decimal(10, 2)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-}
-
-// Enums
 enum UserRole {
   ADMIN
-  VITULO_STAFF
-  DAIRY_SUPPLIER
-  FINISHER
+  FARM_MANAGER
+}
+
+model UserFilterPreset {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  name      String
+  filters   Json
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, name])
+  @@map("user_filter_presets")
+}
+
+// Farms table
+model Farm {
+  id           String     @id @default(uuid())
+  name         String
+  managerName  String     @map("manager_name")
+  managerEmail String     @unique @map("manager_email")
+  managerPhone String?    @map("manager_phone")
+  address      String?
+  status       FarmStatus @default(ACTIVE)
+  farmType     FarmType?  @map("farm_type")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  // Relations
+  animals           Animal[]
+  animalsSourced    Animal[]           @relation("BreederFarm")
+  movementsFrom     AnimalMovement[]   @relation("MovementsFrom")
+  movementsTo       AnimalMovement[]   @relation("MovementsTo")
+  payments          Payment[]
+  animalPayments    AnimalPayment[]
+  slaughterInvoices SlaughterInvoice[]
+  finisherAnimals   CalfPurchase[]     @relation("FinisherFarm")
+
+  @@map("farms")
+}
+
+enum FarmStatus {
+  ACTIVE
+  ARCHIVED
 }
 
 enum FarmType {
-  DAIRY_SUPPLIER
-  FINISHER
-  VITULO_OWNED
+  DAIRY_SUPPLIER  // Farms that supply calves to Vitulo
+  VITULO_SITE     // Vitulo's own farms/sites
+  BEEF_FINISHER   // B&B farms where cattle are finished
 }
 
-enum Breed {
-  ANGUS
-  HEREFORD
-  SIMMENTAL
-  CHAROLAIS
-  LIMOUSIN
-  ABERDEEN_ANGUS
-  AAX // Aberdeen Angus Cross
-  BBX // British Blue Cross
-  HEX // Hereford Cross
-  OTHER
+// Animals table
+model Animal {
+  id            String       @id @default(uuid())
+  tagNumber     String       @unique @map("tag_number")
+  breed         AnimalBreed
+  sex           AnimalSex
+  dateOfBirth   DateTime     @map("date_of_birth") @db.Date
+  sireTag       String?      @map("sire_tag")
+  monthlyCost   Decimal      @map("monthly_cost") @db.Decimal(10, 2)
+  currentFarmId String?      @map("current_farm_id")
+  status        AnimalStatus @default(ACTIVE)
+  arrivalDate   DateTime     @default(now()) @map("arrival_date") @db.Date
+  departureDate DateTime?    @map("departure_date") @db.Date
+
+  // Breeder transfer tracking
+  electronicId    String?   @unique @map("electronic_id")
+  breederSource   String?   @map("breeder_source")
+  breederFarmId   String?   @map("breeder_farm_id")
+  transferDate    DateTime? @map("transfer_date") @db.Date
+  transferWeight  Decimal?  @map("transfer_weight") @db.Decimal(10, 2)
+  lastWeighDate   DateTime? @map("last_weigh_date") @db.Date
+  sourceType      String?   @default("PURCHASE") @map("source_type") // PURCHASE | TRANSFER | BORN_ON_SITE
+
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+
+  // Relations
+  currentFarm      Farm?              @relation(fields: [currentFarmId], references: [id])
+  breederFarm      Farm?              @relation("BreederFarm", fields: [breederFarmId], references: [id])
+  movements        AnimalMovement[]
+  killRecords      KillRecord[]
+  calfPurchase     CalfPurchase?
+  animalPayments   AnimalPayment[]
+  invoiceLineItems InvoiceLineItem[]
+
+  @@index([currentFarmId])
+  @@index([breederFarmId])
+  @@index([status])
+  @@index([tagNumber])
+  @@index([breed])
+  @@index([sex])
+  @@index([dateOfBirth])
+  @@index([electronicId])
+  @@index([sourceType])
+  @@map("animals")
 }
 
-enum Sex {
-  MALE
-  FEMALE
-  CASTRATED
+model KillRecord {
+  id               String            @id @default(uuid())
+  animalId         String?           @map("animal_id")
+  animal           Animal?           @relation(fields: [animalId], references: [id])
+  killDate         DateTime          @map("kill_date") @db.Date
+  killNumber       Int               @map("kill_number")
+  site             String
+  lot              String?
+  breedId          String?           @map("breed_id")
+  category         String?
+  conformation     String?
+  fatClass         String?           @map("fat_class")
+  netWeight1       Decimal?          @map("net_weight_1") @db.Decimal(10, 2)
+  netWeight2       Decimal?          @map("net_weight_2") @db.Decimal(10, 2)
+  totalWeight      Decimal?          @map("total_weight") @db.Decimal(10, 2)
+  specId           String?           @map("spec_id")
+  producerCode     String?           @map("producer_code")
+  producerName     String?           @map("producer_name")
+  value            Decimal?          @db.Decimal(10, 2)
+  pricePerKg       Decimal?          @map("price_per_kg") @db.Decimal(10, 2)
+  farmerValue      Decimal?          @map("farmer_value") @db.Decimal(10, 2)
+  farmPricePerKg   Decimal?          @map("farm_price_per_kg") @db.Decimal(10, 2)
+  rawCsvRow        Json?             @map("raw_csv_row")
+  importLogId      String?           @map("import_log_id")
+  importLog        ImportLog?        @relation(fields: [importLogId], references: [id])
+  createdAt        DateTime          @default(now()) @map("created_at")
+  invoiceLineItems InvoiceLineItem[]
+
+  @@unique([killDate, killNumber])
+  @@index([killDate])
+  @@map("kill_records")
 }
 
-enum AnimalStatus {
-  ALIVE
-  SLAUGHTERED
-  SOLD
-  DEAD
+model Payment {
+  id             String          @id @default(uuid())
+  farmId         String          @map("farm_id")
+  farm           Farm            @relation(fields: [farmId], references: [id])
+  amount         Decimal         @db.Decimal(10, 2)
+  periodStart    DateTime        @map("period_start") @db.Date
+  periodEnd      DateTime        @map("period_end") @db.Date
+  status         PaymentStatus   @default(PAID)
+  method         PaymentMethod   @default(BANK_TRANSFER)
+  paidOn         DateTime?       @map("paid_on")
+  reference      String?
+  notes          String?
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+  animalPayments AnimalPayment[]
+
+  @@index([farmId])
+  @@index([status])
+  @@map("payments")
 }
 
 enum PaymentStatus {
-  PENDING
   PAID
+  PENDING
   OVERDUE
+}
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  CASH
+  CHEQUE
+  DIRECT_DEBIT
+  OTHER
+}
+
+model ImportLog {
+  id              String       @id @default(uuid())
+  uploadedBy      String       @map("uploaded_by")
+  uploadedByUser  User         @relation(fields: [uploadedBy], references: [id])
+  filename        String?
+  uploadedAt      DateTime     @default(now()) @map("uploaded_at")
+  recordsTotal    Int          @map("records_total")
+  recordsImported Int          @map("records_imported")
+  recordsWarnings Int          @map("records_warnings")
+  recordsErrors   Int          @map("records_errors")
+  status          ImportStatus @default(PENDING)
+  errorDetails    Json?        @map("error_details")
+  warningDetails  Json?        @map("warning_details")
+  killRecords     KillRecord[]
+
+  @@map("import_logs")
+}
+
+enum ImportStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum AnimalBreed {
+  ANGUS
+  HEREFORD
+  HOLSTEIN
+  LIMOUSIN
+  CHAROLAIS
+  OTHER
+}
+
+enum AnimalSex {
+  MALE
+  FEMALE
+}
+
+enum AnimalStatus {
+  ACTIVE
+  DEAD
+  SOLD
+  MOVED
+}
+
+// Animal movements (audit trail)
+model AnimalMovement {
+  id           String   @id @default(uuid())
+  animalId     String   @map("animal_id")
+  fromFarmId   String?  @map("from_farm_id")
+  toFarmId     String   @map("to_farm_id")
+  movementDate DateTime @map("movement_date") @db.Date
+  reason       String?
+  createdBy    String   @map("created_by")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  // Relations
+  animal   Animal @relation(fields: [animalId], references: [id])
+  fromFarm Farm?  @relation("MovementsFrom", fields: [fromFarmId], references: [id])
+  toFarm   Farm   @relation("MovementsTo", fields: [toFarmId], references: [id])
+  user     User   @relation(fields: [createdBy], references: [id])
+
+  @@index([animalId])
+  @@map("animal_movements")
+}
+
+// ============================================================================
+// PHASE 2.5: FINANCIAL SYSTEM MODELS
+// ============================================================================
+
+// Calf Purchase Tracking
+model CalfPurchase {
+  id               String   @id @default(uuid())
+  animalId         String   @unique @map("animal_id")
+  animal           Animal   @relation(fields: [animalId], references: [id], onDelete: Cascade)
+
+  // Purchase details (from dairy farm)
+  purchaseDate     DateTime @map("purchase_date") @db.Date
+  sourceType       String   @map("source_type") @default("MARKET") // MARKET, DAIRY_FARM, AUCTION, OTHER
+  sourceName       String?  @map("source_name")
+
+  // Original pricing from dairy
+  basePrice        Decimal  @map("base_price") @db.Decimal(10, 2)
+  weightAtPurchase Decimal? @map("weight_at_purchase") @db.Decimal(10, 2)
+  weightAdjustment Decimal? @map("weight_adjustment") @db.Decimal(10, 2)
+  finalPrice       Decimal  @map("final_price") @db.Decimal(10, 2)  // Original purchase price from dairy
+
+  // Transfer to finisher values (CRITICAL FOR PAYMENT REPORT)
+  transferValue    Decimal? @map("transfer_value") @db.Decimal(10, 2)    // Value assigned at transfer to finisher
+  transferWeight   Decimal? @map("transfer_weight") @db.Decimal(10, 2)   // Weight when transferred
+  transferDate     DateTime? @map("transfer_date") @db.Date              // Date sent to finisher
+  finisherFarmId   String?  @map("finisher_farm_id")                     // Which finisher received the animal
+  finisherFarm     Farm?    @relation("FinisherFarm", fields: [finisherFarmId], references: [id])
+
+  // Metadata
+  notes            String?
+  importedFrom     String?  @map("imported_from")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@index([purchaseDate])
+  @@index([sourceType])
+  @@index([transferDate])
+  @@map("calf_purchases")
+}
+
+// Animal-Level Payment Allocation
+model AnimalPayment {
+  id          String   @id @default(uuid())
+  animalId    String   @map("animal_id")
+  animal      Animal   @relation(fields: [animalId], references: [id], onDelete: Cascade)
+
+  farmId      String   @map("farm_id")
+  farm        Farm     @relation(fields: [farmId], references: [id], onDelete: Cascade)
+
+  paymentId   String?  @map("payment_id")
+  payment     Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  // Payment period
+  periodStart DateTime @map("period_start") @db.Date
+  periodEnd   DateTime @map("period_end") @db.Date
+  amount      Decimal  @db.Decimal(10, 2)
+
+  // Metadata
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@unique([animalId, periodStart])
+  @@index([animalId])
+  @@index([farmId])
+  @@index([paymentId])
+  @@map("animal_payments")
+}
+
+// Self-Billing Invoices
+model SlaughterInvoice {
+  id                   String             @id @default(uuid())
+  invoiceNumber        String             @unique @map("invoice_number")
+  farmId               String             @map("farm_id")
+  farm                 Farm               @relation(fields: [farmId], references: [id])
+
+  // Invoice metadata
+  invoiceDate          DateTime           @default(now()) @map("invoice_date")
+  killDate             DateTime           @map("kill_date") @db.Date
+  status               InvoiceStatus      @default(DRAFT)
+  sentAt               DateTime?          @map("sent_at")
+  paidAt               DateTime?          @map("paid_at")
+
+  // Financial summary
+  totalCarcassValue    Decimal            @map("total_carcass_value") @db.Decimal(10, 2)
+  totalCalfCosts       Decimal            @map("total_calf_costs") @db.Decimal(10, 2)
+  totalMonthlyPayments Decimal            @map("total_monthly_payments") @db.Decimal(10, 2)
+  totalVituloFees      Decimal            @map("total_vitulo_fees") @db.Decimal(10, 2)
+  totalSlaughterCosts  Decimal            @map("total_slaughter_costs") @db.Decimal(10, 2)
+  totalHaulageCosts    Decimal            @map("total_haulage_costs") @db.Decimal(10, 2)
+  adjustments          Decimal            @default(0) @map("adjustments") @db.Decimal(10, 2)
+
+  // Net calculation
+  netPayment           Decimal            @map("net_payment") @db.Decimal(10, 2)
+  vatRate              Decimal            @default(0.20) @map("vat_rate") @db.Decimal(5, 4)
+  vatAmount            Decimal            @map("vat_amount") @db.Decimal(10, 2)
+  totalDue             Decimal            @map("total_due") @db.Decimal(10, 2)
+
+  // Relations
+  lineItems            InvoiceLineItem[]
+
+  // Notes
+  notes                String?
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
+
+  @@index([farmId])
+  @@index([killDate])
+  @@index([status])
+  @@index([invoiceNumber])
+  @@map("slaughter_invoices")
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  VOID
+}
+
+model InvoiceLineItem {
+  id             String           @id @default(uuid())
+  invoiceId      String           @map("invoice_id")
+  invoice        SlaughterInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  animalId       String           @map("animal_id")
+  animal         Animal           @relation(fields: [animalId], references: [id])
+
+  killRecordId   String           @map("kill_record_id")
+  killRecord     KillRecord       @relation(fields: [killRecordId], references: [id])
+
+  // Per-animal breakdown
+  tagNumber      String           @map("tag_number")
+  calfValue      Decimal          @map("calf_value") @db.Decimal(10, 2)
+  paidToDate     Decimal          @map("paid_to_date") @db.Decimal(10, 2)
+  vituloFee      Decimal          @map("vitulo_fee") @db.Decimal(10, 2)
+  slaughterCost  Decimal          @map("slaughter_cost") @db.Decimal(10, 2)
+  haulageCost    Decimal          @map("haulage_cost") @db.Decimal(10, 2)
+  carcassValue   Decimal          @map("carcass_value") @db.Decimal(10, 2)
+  farmerPayment  Decimal          @map("farmer_payment") @db.Decimal(10, 2)
+
+  @@index([invoiceId])
+  @@index([animalId])
+  @@map("invoice_line_items")
+}
+
+// System Configuration
+model SystemConfig {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("system_config")
 }
