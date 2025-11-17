@@ -13,13 +13,17 @@ datasource db {
 
 // Users table (managed by Supabase Auth)
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  role      UserRole @default(FARM_MANAGER)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id           String   @id @default(uuid())
+  email        String   @unique
+  name         String?
+  passwordHash String?  @map("password_hash")
+  role         UserRole @default(FARM_MANAGER)
+  farmId       String?  @map("farm_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
   // Relations
+  farm          Farm?              @relation(fields: [farmId], references: [id])
   movements     AnimalMovement[]
   importLogs    ImportLog[]
   filterPresets UserFilterPreset[]
@@ -30,6 +34,8 @@ model User {
 enum UserRole {
   ADMIN
   FARM_MANAGER
+  DAIRY_SUPPLIER
+  FINISHER
 }
 
 model UserFilterPreset {
@@ -60,6 +66,7 @@ model Farm {
   updatedAt    DateTime   @updatedAt @map("updated_at")
 
   // Relations
+  users             User[]
   animals           Animal[]
   animalsSourced    Animal[]           @relation("BreederFarm")
   movementsFrom     AnimalMovement[]   @relation("MovementsFrom")
