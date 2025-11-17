@@ -5,12 +5,11 @@ import { usePathname } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { 
-  Beef, 
-  Home, 
-  Cow, 
-  PoundSterling, 
-  TrendingUp, 
+import {
+  Beef,
+  Home,
+  PoundSterling,
+  TrendingUp,
   LogOut,
   Menu,
   X
@@ -19,7 +18,7 @@ import { useState } from 'react';
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: Home },
-  { href: '/dashboard/calves', label: 'Calves Sold', icon: Cow },
+  { href: '/dashboard/calves', label: 'Calves Sold', icon: Beef },
   { href: '/dashboard/payments', label: 'Payments', icon: PoundSterling },
   { href: '/dashboard/performance', label: 'Performance', icon: TrendingUp },
 ];

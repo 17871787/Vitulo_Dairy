@@ -4,10 +4,10 @@ import prisma from '@/lib/prisma';
 import SummaryCard from '@/components/dashboard/SummaryCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Cow, 
-  PoundSterling, 
-  Clock, 
+import {
+  Beef,
+  PoundSterling,
+  Clock,
   TrendingUp,
   Calendar,
   Truck,
@@ -130,7 +130,7 @@ export default async function DashboardPage() {
           title="Total Calves Sold"
           value={data.totalCalves}
           description="All time"
-          icon={Cow}
+          icon={Beef}
         />
         <SummaryCard
           title="Total Earned"
@@ -212,7 +212,7 @@ export default async function DashboardPage() {
         <Card className="hover:shadow-md transition-shadow cursor-pointer">
           <CardContent className="flex items-center space-x-4 p-6">
             <div className="bg-blue-100 p-3 rounded-lg">
-              <Cow className="h-6 w-6 text-blue-600" />
+              <Beef className="h-6 w-6 text-blue-600" />
             </div>
             <div>
               <p className="font-medium">View All Calves</p>

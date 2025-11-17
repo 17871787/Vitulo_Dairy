@@ -6,18 +6,24 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatCurrency(amount: number | string | null | undefined): string {
+export function formatCurrency(amount: number | string | any | null | undefined): string {
   if (amount === null || amount === undefined) return '£0.00';
-  const value = typeof amount === 'string' ? parseFloat(amount) : amount;
+  // Handle Prisma Decimal type
+  const value = (amount && typeof amount === 'object' && 'toNumber' in amount)
+    ? amount.toNumber()
+    : (typeof amount === 'string' ? parseFloat(amount) : amount);
   return new Intl.NumberFormat('en-GB', {
     style: 'currency',
     currency: 'GBP',
   }).format(value);
 }
 
-export function formatWeight(weight: number | string | null | undefined): string {
+export function formatWeight(weight: number | string | any | null | undefined): string {
   if (weight === null || weight === undefined) return 'N/A';
-  const value = typeof weight === 'string' ? parseFloat(weight) : weight;
+  // Handle Prisma Decimal type
+  const value = (weight && typeof weight === 'object' && 'toNumber' in weight)
+    ? weight.toNumber()
+    : (typeof weight === 'string' ? parseFloat(weight) : weight);
   return `${value.toFixed(1)}kg`;
 }
 
