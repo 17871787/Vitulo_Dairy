@@ -15,57 +15,34 @@ export async function GET(request: Request) {
     const year = searchParams.get('year');
     const month = searchParams.get('month');
 
-    // Build where clause
-    const where: any = {
-      sourceFarmId: session.user.farmId,
-    };
-
-    // Apply date filters if provided
-    if (year || month) {
-      const startDate = new Date(
-        parseInt(year || new Date().getFullYear().toString()),
-        month ? parseInt(month) - 1 : 0,
-        1
-      );
-      const endDate = new Date(
-        parseInt(year || new Date().getFullYear().toString()),
-        month ? parseInt(month) : 12,
-        0
-      );
-
-      where.purchaseDate = {
-        gte: startDate,
-        lte: endDate,
-      };
-    }
-
-    // Get all purchases for this dairy farm
-    const purchases = await prisma.calfPurchase.findMany({
-      where,
+    // Get payments for this dairy farm
+    const payments = await prisma.payments.findMany({
+      where: {
+        farm_id: session.user.farmId,
+      },
       include: {
-        animal: {
-          select: {
-            tagNumber: true,
-            breed: true,
-            sex: true,
-            dateOfBirth: true,
-            status: true,
+        animal_payments: {
+          include: {
+            animals: {
+              select: {
+                tagNumber: true,
+                breed: true,
+              },
+            },
           },
         },
       },
       orderBy: {
-        purchaseDate: 'desc',
+        period_end: 'desc',
       },
     });
 
-    // Group payments by month and payment status
+    // Group payments by month
     const paymentGroups: Record<string, any> = {};
-    
-    purchases.forEach((purchase) => {
-      const monthKey = purchase.paymentDate 
-        ? purchase.paymentDate.toISOString().slice(0, 7)
-        : purchase.purchaseDate.toISOString().slice(0, 7);
-      
+
+    payments.forEach((payment) => {
+      const monthKey = payment.period_end.toISOString().slice(0, 7);
+
       if (!paymentGroups[monthKey]) {
         paymentGroups[monthKey] = {
           month: monthKey,
@@ -76,15 +53,15 @@ export async function GET(request: Request) {
           calfCount: 0,
         };
       }
-      
-      paymentGroups[monthKey].payments.push(purchase);
-      paymentGroups[monthKey].totalAmount += Number(purchase.purchasePrice);
-      paymentGroups[monthKey].calfCount += 1;
-      
-      if (purchase.paymentStatus === 'PAID') {
-        paymentGroups[monthKey].paidAmount += Number(purchase.purchasePrice);
+
+      paymentGroups[monthKey].payments.push(payment);
+      paymentGroups[monthKey].totalAmount += Number(payment.amount);
+      paymentGroups[monthKey].calfCount += payment.animal_payments.length;
+
+      if (payment.status === 'PAID') {
+        paymentGroups[monthKey].paidAmount += Number(payment.amount);
       } else {
-        paymentGroups[monthKey].pendingAmount += Number(purchase.purchasePrice);
+        paymentGroups[monthKey].pendingAmount += Number(payment.amount);
       }
     });
 
@@ -95,31 +72,25 @@ export async function GET(request: Request) {
 
     // Calculate summary statistics
     const summary = {
-      totalEarned: purchases.reduce((sum, p) => sum + Number(p.purchasePrice), 0),
-      totalPaid: purchases
-        .filter(p => p.paymentStatus === 'PAID')
-        .reduce((sum, p) => sum + Number(p.purchasePrice), 0),
-      totalPending: purchases
-        .filter(p => p.paymentStatus === 'PENDING')
-        .reduce((sum, p) => sum + Number(p.purchasePrice), 0),
-      totalOverdue: purchases
-        .filter(p => {
-          if (p.paymentStatus !== 'PENDING') return false;
-          const daysSincePurchase = Math.floor(
-            (new Date().getTime() - p.purchaseDate.getTime()) / (1000 * 60 * 60 * 24)
-          );
-          return daysSincePurchase > 30;
-        })
-        .reduce((sum, p) => sum + Number(p.purchasePrice), 0),
-      averagePerCalf: purchases.length > 0 
-        ? purchases.reduce((sum, p) => sum + Number(p.purchasePrice), 0) / purchases.length
+      totalEarned: payments.reduce((sum, p) => sum + Number(p.amount), 0),
+      totalPaid: payments
+        .filter(p => p.status === 'PAID')
+        .reduce((sum, p) => sum + Number(p.amount), 0),
+      totalPending: payments
+        .filter(p => p.status === 'PENDING')
+        .reduce((sum, p) => sum + Number(p.amount), 0),
+      totalOverdue: payments
+        .filter(p => p.status === 'OVERDUE')
+        .reduce((sum, p) => sum + Number(p.amount), 0),
+      averagePerCalf: payments.length > 0
+        ? payments.reduce((sum, p) => sum + Number(p.amount), 0) /
+          payments.reduce((sum, p) => sum + p.animal_payments.length, 0)
         : 0,
-      totalCalves: purchases.length,
+      totalCalves: payments.reduce((sum, p) => sum + p.animal_payments.length, 0),
     };
 
     return NextResponse.json({
       payments: monthlyPayments,
-      purchases,
       summary,
     });
   } catch (error) {

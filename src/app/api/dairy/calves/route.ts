@@ -18,78 +18,64 @@ export async function GET(request: Request) {
     const endDate = searchParams.get('endDate');
     const search = searchParams.get('search');
 
-    // Build where clause
-    const where: any = {
-      sourceFarmId: session.user.farmId,
-    };
-
-    // Apply filters
-    if (search) {
-      where.tagNumber = {
-        contains: search,
-        mode: 'insensitive',
-      };
-    }
-
-    if (breed && breed !== 'all') {
-      where.breed = breed;
-    }
-
-    if (startDate || endDate) {
-      where.calfPurchase = {
-        purchaseDate: {
-          ...(startDate && { gte: new Date(startDate) }),
-          ...(endDate && { lte: new Date(endDate) }),
+    // Query CalfPurchases where the animal's breederFarmId matches the dairy farm
+    const calfPurchases = await prisma.calfPurchase.findMany({
+      where: {
+        animal: {
+          breeder_farm_id: session.user.farmId,
+          ...(search && {
+            tagNumber: {
+              contains: search,
+              mode: 'insensitive',
+            },
+          }),
+          ...(breed && breed !== 'all' && { breed }),
         },
-      };
-    }
-
-    if (paymentStatus && paymentStatus !== 'all') {
-      if (!where.calfPurchase) where.calfPurchase = {};
-      where.calfPurchase.paymentStatus = paymentStatus;
-    }
-
-    const calves = await prisma.animal.findMany({
-      where,
-      include: {
-        calfPurchase: {
-          select: {
-            final_price: true,
-            purchaseDate: true,
-            weight_at_purchase: true,
-            source_name: true,
-            notes: true,
+        ...(startDate || endDate ? {
+          purchaseDate: {
+            ...(startDate && { gte: new Date(startDate) }),
+            ...(endDate && { lte: new Date(endDate) }),
           },
-        },
+        } : {}),
+      },
+      include: {
+        animal: true,
       },
       orderBy: {
-        createdAt: 'desc',
+        purchaseDate: 'desc',
       },
     });
 
-    // Map the results to match expected format
-    const mappedCalves = calves.map(calf => ({
-      ...calf,
-      calfPurchase: calf.calfPurchase ? {
-        purchasePrice: calf.calfPurchase.final_price,
-        purchaseDate: calf.calfPurchase.purchaseDate,
-        purchaseWeight: calf.calfPurchase.weight_at_purchase,
-        paymentStatus: 'PENDING', // Default - update based on your payment tracking logic
+    // Map the results to match expected frontend format
+    const mappedCalves = calfPurchases.map(purchase => ({
+      id: purchase.animal.id,
+      tagNumber: purchase.animal.tagNumber,
+      breed: purchase.animal.breed,
+      sex: purchase.animal.sex,
+      dateOfBirth: purchase.animal.dateOfBirth,
+      status: purchase.animal.status,
+      createdAt: purchase.animal.createdAt,
+      updatedAt: purchase.animal.updatedAt,
+      calfPurchase: {
+        purchasePrice: purchase.final_price,
+        purchaseDate: purchase.purchaseDate,
+        purchaseWeight: purchase.weight_at_purchase,
+        paymentStatus: 'PENDING', // Will be updated from payments table
         paymentDate: null,
-        invoiceNumber: calf.calfPurchase.source_name,
-      } : null
+        invoiceNumber: purchase.source_name,
+      },
     }));
 
     // Calculate summary statistics
     const stats = {
       totalCalves: mappedCalves.length,
       totalValue: mappedCalves.reduce((sum, calf) =>
-        sum + (calf.calfPurchase ? Number(calf.calfPurchase.purchasePrice) : 0), 0
+        sum + Number(calf.calfPurchase.purchasePrice), 0
       ),
       pendingValue: mappedCalves.reduce((sum, calf) =>
-        sum + (calf.calfPurchase ? Number(calf.calfPurchase.purchasePrice) : 0), 0
+        sum + Number(calf.calfPurchase.purchasePrice), 0
       ),
-      paidValue: 0, // Update based on your payment tracking logic
+      paidValue: 0, // Will be calculated from payments table
     };
 
     return NextResponse.json({ calves: mappedCalves, stats });
