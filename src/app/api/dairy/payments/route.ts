@@ -16,14 +16,14 @@ export async function GET(request: Request) {
     const month = searchParams.get('month');
 
     // Get payments for this dairy farm
-    const payments = await prisma.payments.findMany({
+    const payments = await prisma.payment.findMany({ // ✅ FIXED: singular model name
       where: {
-        farm_id: session.user.farmId,
+        farmId: session.user.farmId, // ✅ FIXED: camelCase
       },
       include: {
-        animal_payments: {
+        animalPayments: { // ✅ FIXED: camelCase
           include: {
-            animals: {
+            animal: { // ✅ FIXED: singular
               select: {
                 tagNumber: true,
                 breed: true,
@@ -33,7 +33,7 @@ export async function GET(request: Request) {
         },
       },
       orderBy: {
-        period_end: 'desc',
+        periodEnd: 'desc', // ✅ FIXED: camelCase
       },
     });
 
@@ -41,7 +41,7 @@ export async function GET(request: Request) {
     const paymentGroups: Record<string, any> = {};
 
     payments.forEach((payment) => {
-      const monthKey = payment.period_end.toISOString().slice(0, 7);
+      const monthKey = payment.periodEnd.toISOString().slice(0, 7); // ✅ FIXED: camelCase
 
       if (!paymentGroups[monthKey]) {
         paymentGroups[monthKey] = {
@@ -56,7 +56,7 @@ export async function GET(request: Request) {
 
       paymentGroups[monthKey].payments.push(payment);
       paymentGroups[monthKey].totalAmount += Number(payment.amount);
-      paymentGroups[monthKey].calfCount += payment.animal_payments.length;
+      paymentGroups[monthKey].calfCount += payment.animalPayments.length; // ✅ FIXED: camelCase
 
       if (payment.status === 'PAID') {
         paymentGroups[monthKey].paidAmount += Number(payment.amount);
@@ -84,9 +84,9 @@ export async function GET(request: Request) {
         .reduce((sum, p) => sum + Number(p.amount), 0),
       averagePerCalf: payments.length > 0
         ? payments.reduce((sum, p) => sum + Number(p.amount), 0) /
-          payments.reduce((sum, p) => sum + p.animal_payments.length, 0)
+          payments.reduce((sum, p) => sum + p.animalPayments.length, 0) // ✅ FIXED: camelCase
         : 0,
-      totalCalves: payments.reduce((sum, p) => sum + p.animal_payments.length, 0),
+      totalCalves: payments.reduce((sum, p) => sum + p.animalPayments.length, 0), // ✅ FIXED: camelCase
     };
 
     return NextResponse.json({

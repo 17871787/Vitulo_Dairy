@@ -22,14 +22,14 @@ export async function GET(request: Request) {
     const calfPurchases = await prisma.calfPurchase.findMany({
       where: {
         animal: {
-          breeder_farm_id: session.user.farmId,
+          breederFarmId: session.user.farmId, // ✅ FIXED: Use camelCase
           ...(search && {
             tagNumber: {
               contains: search,
               mode: 'insensitive',
             },
           }),
-          ...(breed && breed !== 'all' && { breed }),
+          ...(breed && breed !== 'all' && { breed: breed as any }), // Cast to handle enum
         },
         ...(startDate || endDate ? {
           purchaseDate: {
@@ -57,12 +57,12 @@ export async function GET(request: Request) {
       createdAt: purchase.animal.createdAt,
       updatedAt: purchase.animal.updatedAt,
       calfPurchase: {
-        purchasePrice: purchase.final_price,
+        purchasePrice: purchase.finalPrice, // ✅ FIXED: camelCase
         purchaseDate: purchase.purchaseDate,
-        purchaseWeight: purchase.weight_at_purchase,
+        purchaseWeight: purchase.weightAtPurchase, // ✅ FIXED: camelCase
         paymentStatus: 'PENDING', // Will be updated from payments table
         paymentDate: null,
-        invoiceNumber: purchase.source_name,
+        invoiceNumber: purchase.sourceName, // ✅ FIXED: camelCase
       },
     }));
 
