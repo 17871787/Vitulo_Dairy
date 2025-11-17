@@ -54,21 +54,11 @@ export async function GET(request: Request) {
       include: {
         calfPurchase: {
           select: {
-            purchasePrice: true,
+            final_price: true,
             purchaseDate: true,
-            purchaseWeight: true,
-            paymentStatus: true,
-            paymentDate: true,
-            invoiceNumber: true,
-          },
-        },
-        killRecord: {
-          select: {
-            dateOfKill: true,
-            deadweight: true,
-            conformationClass: true,
-            fatClass: true,
-            carcassValue: true,
+            weight_at_purchase: true,
+            source_name: true,
+            notes: true,
           },
         },
       },
@@ -77,21 +67,32 @@ export async function GET(request: Request) {
       },
     });
 
+    // Map the results to match expected format
+    const mappedCalves = calves.map(calf => ({
+      ...calf,
+      calfPurchase: calf.calfPurchase ? {
+        purchasePrice: calf.calfPurchase.final_price,
+        purchaseDate: calf.calfPurchase.purchaseDate,
+        purchaseWeight: calf.calfPurchase.weight_at_purchase,
+        paymentStatus: 'PENDING', // Default - update based on your payment tracking logic
+        paymentDate: null,
+        invoiceNumber: calf.calfPurchase.source_name,
+      } : null
+    }));
+
     // Calculate summary statistics
     const stats = {
-      totalCalves: calves.length,
-      totalValue: calves.reduce((sum, calf) => 
+      totalCalves: mappedCalves.length,
+      totalValue: mappedCalves.reduce((sum, calf) =>
         sum + (calf.calfPurchase ? Number(calf.calfPurchase.purchasePrice) : 0), 0
       ),
-      pendingValue: calves
-        .filter(c => c.calfPurchase?.paymentStatus === 'PENDING')
-        .reduce((sum, calf) => sum + Number(calf.calfPurchase!.purchasePrice), 0),
-      paidValue: calves
-        .filter(c => c.calfPurchase?.paymentStatus === 'PAID')
-        .reduce((sum, calf) => sum + Number(calf.calfPurchase!.purchasePrice), 0),
+      pendingValue: mappedCalves.reduce((sum, calf) =>
+        sum + (calf.calfPurchase ? Number(calf.calfPurchase.purchasePrice) : 0), 0
+      ),
+      paidValue: 0, // Update based on your payment tracking logic
     };
 
-    return NextResponse.json({ calves, stats });
+    return NextResponse.json({ calves: mappedCalves, stats });
   } catch (error) {
     console.error('Error fetching calves:', error);
     return NextResponse.json(
