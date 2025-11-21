@@ -17,21 +17,17 @@ import {
 import { formatCurrency, formatDate, getPaymentStatusColor } from '@/lib/utils';
 
 async function getDashboardData(farmId: string) {
-  // Get total calves sold (count via calfPurchase for breeder farm)
+  // Get total calves sold (count via calfPurchase dairyFarmId)
   const totalCalves = await prisma.calfPurchase.count({
     where: {
-      animal: {
-        breederFarmId: farmId, // ✅ FIXED: use breederFarmId
-      },
+      dairyFarmId: farmId,
     },
   });
 
   // Get all purchases for financial calculations
   const purchases = await prisma.calfPurchase.findMany({
     where: {
-      animal: {
-        breederFarmId: farmId, // ✅ FIXED: use breederFarmId
-      },
+      dairyFarmId: farmId,
     },
     include: {
       animal: {
@@ -50,14 +46,15 @@ async function getDashboardData(farmId: string) {
   // Calculate financial totals
   const allPurchases = await prisma.calfPurchase.findMany({
     where: {
-      animal: {
-        breederFarmId: farmId, // ✅ FIXED: use breederFarmId
-      },
+      dairyFarmId: farmId,
+    },
+    select: {
+      finalPrice: true,
     },
   });
 
   const totalEarned = allPurchases.reduce(
-    (sum, p) => sum + Number(p.finalPrice), // ✅ FIXED: finalPrice
+    (sum, p) => sum + Number(p.finalPrice || 0),
     0
   );
 
@@ -71,9 +68,7 @@ async function getDashboardData(farmId: string) {
 
   const thisMonthCalves = await prisma.calfPurchase.count({
     where: {
-      animal: {
-        breederFarmId: farmId, // ✅ FIXED: breederFarmId
-      },
+      dairyFarmId: farmId,
       purchaseDate: {
         gte: startOfMonth,
       },
@@ -86,9 +81,7 @@ async function getDashboardData(farmId: string) {
   
   const lastMonthCalves = await prisma.calfPurchase.count({
     where: {
-      animal: {
-        breederFarmId: farmId, // ✅ FIXED: breederFarmId
-      },
+      dairyFarmId: farmId,
       purchaseDate: {
         gte: startOfLastMonth,
         lt: startOfMonth,
