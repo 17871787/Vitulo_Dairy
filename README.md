@@ -45,13 +45,14 @@ All three applications share a single PostgreSQL database hosted on Supabase.
 
 ## Technology Stack
 
-- **Framework:** Next.js 15 (App Router)
-- **Language:** TypeScript
+- **Framework:** Next.js 16 (App Router)
+- **Runtime:** React 19 (RC/Latest)
+- **Language:** TypeScript 5
 - **Database:** PostgreSQL (Supabase)
-- **ORM:** Prisma
+- **ORM:** Prisma 6
 - **Authentication:** NextAuth.js with credentials provider
-- **UI Components:** Radix UI + Tailwind CSS
-- **Styling:** Tailwind CSS
+- **UI Components:** Radix UI + Tailwind CSS 4
+- **Styling:** Tailwind CSS 4 (with CSS Variables)
 - **Charts:** Recharts
 - **Deployment:** Vercel
 

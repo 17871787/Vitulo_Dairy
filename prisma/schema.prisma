@@ -75,6 +75,7 @@ model Farm {
   animalPayments    AnimalPayment[]
   slaughterInvoices SlaughterInvoice[]
   finisherAnimals   CalfPurchase[]     @relation("FinisherFarm")
+  dairyAnimals      CalfPurchase[]     @relation("DairyFarm")
 
   @@map("farms")
 }
@@ -285,6 +286,10 @@ model CalfPurchase {
   purchaseDate     DateTime @map("purchase_date") @db.Date
   sourceType       String   @map("source_type") @default("MARKET") // MARKET, DAIRY_FARM, AUCTION, OTHER
   sourceName       String?  @map("source_name")
+  
+  // Dairy Farm Linkage (For Portal)
+  dairyFarmId      String?  @map("dairy_farm_id")
+  dairyFarm        Farm?    @relation("DairyFarm", fields: [dairyFarmId], references: [id])
 
   // Original pricing from dairy
   basePrice        Decimal  @map("base_price") @db.Decimal(10, 2)
