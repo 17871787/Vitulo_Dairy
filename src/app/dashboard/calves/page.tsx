@@ -136,12 +136,12 @@ export default function CalvesPage() {
           bValue = b.breed;
           break;
         case 'dateOfBirth':
-          aValue = new Date(a.dateOfBirth);
-          bValue = new Date(b.dateOfBirth);
+          aValue = new Date(a.dateOfBirth).getTime();
+          bValue = new Date(b.dateOfBirth).getTime();
           break;
         case 'purchaseDate':
-          aValue = a.calfPurchase ? new Date(a.calfPurchase.purchaseDate) : new Date(0);
-          bValue = b.calfPurchase ? new Date(b.calfPurchase.purchaseDate) : new Date(0);
+          aValue = a.calfPurchase ? new Date(a.calfPurchase.purchaseDate).getTime() : 0;
+          bValue = b.calfPurchase ? new Date(b.calfPurchase.purchaseDate).getTime() : 0;
           break;
         case 'purchasePrice':
           aValue = a.calfPurchase ? parseFloat(a.calfPurchase.purchasePrice) : 0;

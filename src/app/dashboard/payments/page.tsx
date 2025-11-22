@@ -20,12 +20,15 @@ import {
   CheckCircle,
   Clock,
   TrendingUp,
-  FileText
+  FileText,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { formatCurrency, formatDate, getPaymentStatusColor } from '@/lib/utils';
 
 interface PaymentData {
   month: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   payments: any[];
   totalAmount: number;
   paidAmount: number;
@@ -251,6 +254,11 @@ export default function PaymentsPage() {
                           )}
                         </div>
                       </div>
+                      {expandedMonths.has(monthData.month) ? (
+                        <ChevronUp className="h-5 w-5 text-gray-400" />
+                      ) : (
+                        <ChevronDown className="h-5 w-5 text-gray-400" />
+                      )}
                     </div>
                   </button>
 

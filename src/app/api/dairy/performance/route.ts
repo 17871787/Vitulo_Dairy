@@ -18,36 +18,47 @@ export async function GET(request: Request) {
     startDate.setMonth(startDate.getMonth() - parseInt(period));
 
     // Get kill records for animals from this dairy farm
-    const killRecords = await prisma.killRecord.findMany({ // ✅ FIXED: singular model name
+    // Use correct related filter: `animal: { breederFarmId: ... }`
+    const killRecords = await prisma.killRecord.findMany({
       where: {
-        killDate: { // ✅ FIXED: camelCase
+        killDate: {
           gte: startDate,
         },
+        animal: {
+          breederFarmId: session.user.farmId,
+        },
       },
+      include: {
+        animal: {
+          select: {
+            breed: true,
+            sex: true,
+          }
+        }
+      }
     });
 
-    // Filter to only include records from this farm's animals
-    // Note: killRecords don't have direct farm link, would need to join through animals
-    // For now, return basic structure
     const metrics = {
-      totalSlaughtered: 0, // Would need animal join
+      totalSlaughtered: killRecords.length,
       averageDeadweight: 0,
       averageCarcassValue: 0,
       gradeDistribution: {} as Record<string, number>,
       conformationDistribution: {} as Record<string, number>,
       fatClassDistribution: {} as Record<string, number>,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       breedPerformance: {} as Record<string, any>,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       monthlyTrends: [] as any[],
     };
 
     if (killRecords.length > 0) {
       // Calculate averages from available records
-      const recordsWithWeight = killRecords.filter(kr => kr.totalWeight); // ✅ FIXED: camelCase
+      const recordsWithWeight = killRecords.filter(kr => kr.totalWeight);
       const recordsWithValue = killRecords.filter(kr => kr.value);
 
       if (recordsWithWeight.length > 0) {
         metrics.averageDeadweight = recordsWithWeight.reduce(
-          (sum, kr) => sum + Number(kr.totalWeight || 0), // ✅ FIXED: camelCase
+          (sum, kr) => sum + Number(kr.totalWeight || 0),
           0
         ) / recordsWithWeight.length;
       }
@@ -59,10 +70,9 @@ export async function GET(request: Request) {
         ) / recordsWithValue.length;
       }
 
-      metrics.totalSlaughtered = killRecords.length;
-
-      // Calculate distributions
+      // Calculate distributions and breed performance
       killRecords.forEach((kr) => {
+        // Grade Distribution
         if (kr.conformation && kr.fatClass) {
           const grade = `${kr.conformation}${kr.fatClass}`;
           metrics.gradeDistribution[grade] = (metrics.gradeDistribution[grade] || 0) + 1;
@@ -75,14 +85,36 @@ export async function GET(request: Request) {
 
         if (kr.fatClass) {
           metrics.fatClassDistribution[kr.fatClass] =
-          (metrics.fatClassDistribution[kr.fatClass] || 0) + 1; // ✅ FIXED: use kr not killRecord
+          (metrics.fatClassDistribution[kr.fatClass] || 0) + 1;
         }
+
+        // Breed Performance
+        const breed = kr.animal?.breed || 'Unknown';
+        if (!metrics.breedPerformance[breed]) {
+          metrics.breedPerformance[breed] = {
+            breed,
+            count: 0,
+            totalDeadweight: 0,
+            totalValue: 0,
+          };
+        }
+        const bp = metrics.breedPerformance[breed];
+        bp.count += 1;
+        bp.totalDeadweight += Number(kr.totalWeight || 0);
+        bp.totalValue += Number(kr.value || 0);
+      });
+
+      // Finalize breed performance averages
+      Object.values(metrics.breedPerformance).forEach((bp) => {
+        bp.averageDeadweight = bp.totalDeadweight / bp.count;
+        bp.averageValue = bp.totalValue / bp.count;
       });
 
       // Group by month for trends
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const monthlyData: Record<string, any> = {};
       killRecords.forEach((kr) => {
-        const month = kr.killDate.toISOString().slice(0, 7); // ✅ FIXED: camelCase
+        const month = kr.killDate.toISOString().slice(0, 7);
         if (!monthlyData[month]) {
           monthlyData[month] = {
             month,
@@ -92,8 +124,8 @@ export async function GET(request: Request) {
           };
         }
         monthlyData[month].count += 1;
-        monthlyData[month].totalDeadweight += Number(kr.totalWeight || 0); // ✅ FIXED: use kr and camelCase
-        monthlyData[month].totalCarcassValue += Number(kr.value || 0); // ✅ FIXED: use kr
+        monthlyData[month].totalDeadweight += Number(kr.totalWeight || 0);
+        monthlyData[month].totalCarcassValue += Number(kr.value || 0);
       });
 
       // Convert to array and calculate averages
@@ -106,7 +138,7 @@ export async function GET(request: Request) {
         .sort((a, b) => a.month.localeCompare(b.month));
     }
 
-    // Industry benchmarks (these would come from a config or separate table)
+    // Industry benchmarks (placeholder for demo)
     const benchmarks = {
       deadweight: 320, // kg
       topGradePercentage: 25, // % achieving R3 or better
@@ -125,7 +157,7 @@ export async function GET(request: Request) {
       metrics,
       benchmarks,
       comparison,
-      killRecords, // ✅ FIXED: use correct variable name
+      killRecords: killRecords.slice(0, 100), // Limit for performance
     });
   } catch (error) {
     console.error('Error fetching performance data:', error);
